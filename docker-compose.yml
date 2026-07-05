@@ -1,0 +1,28 @@
+services:
+  codex-web:
+    build: .
+    image: codex-web:local
+    container_name: codex-web
+    restart: unless-stopped
+    network_mode: host
+    user: "${CODEX_WEB_UID:-1000}:${CODEX_WEB_GID:-1000}"
+    group_add:
+      - "${CODEX_WEB_DOCKER_GID:-988}"
+    environment:
+      HOME: "${CODEX_WEB_HOME:-/home/liuyu}"
+      HOST: "${CODEX_WEB_HOST:-127.0.0.1}"
+      PORT: "${CODEX_WEB_PORT:-8214}"
+    volumes:
+      - "${CODEX_WEB_HOME:-/home/liuyu}:${CODEX_WEB_HOME:-/home/liuyu}"
+      - "/mnt/ssd:/mnt/ssd"
+      - "/tmp:/tmp"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: codex-web-cloudflared
+    restart: unless-stopped
+    network_mode: host
+    command: tunnel run --token ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    profiles:
+      - tunnel

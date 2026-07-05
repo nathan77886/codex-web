@@ -40,6 +40,63 @@ nix run github:0xcaff/codex-web
 
 then open <http://127.0.0.1:8214> in a browser.
 
+### docker
+
+Build and start the local container:
+
+```bash
+docker compose up -d --build codex-web
+```
+
+The compose file is tuned for the current host user and data layout:
+
+```bash
+CODEX_WEB_UID=1000
+CODEX_WEB_GID=1000
+CODEX_WEB_DOCKER_GID=988
+CODEX_WEB_HOME=/home/liuyu
+CODEX_WEB_HOST=127.0.0.1
+CODEX_WEB_PORT=8214
+```
+
+It mounts:
+
+- `/home/liuyu` so the container can reuse the Codex CLI login and user config.
+- `/mnt/ssd` so Codex can work with this repo and other SSD workspaces.
+- `/tmp` for app server sockets and temporary files.
+- `/var/run/docker.sock` so Codex can run Docker through the host daemon.
+
+This gives Codex broad access to the host as user `liuyu`, plus Docker daemon
+access. Treat the web UI as a remote shell with file and Docker access.
+
+### cloudflare tunnel
+
+Create a Cloudflare Tunnel token, then start the tunnel sidecar:
+
+```bash
+export CLOUDFLARE_TUNNEL_TOKEN=...
+docker compose --profile tunnel up -d cloudflared
+```
+
+Keep `codex-web` bound to `127.0.0.1:8214` and expose it through Cloudflare
+Tunnel. Add Cloudflare Access or another authentication layer before exposing it
+to the internet.
+
+### github actions deploy
+
+This repo includes `.github/workflows/docker-deploy.yml`. It builds and starts
+the Docker service on a self-hosted GitHub Actions runner:
+
+```text
+push to main / manual workflow_dispatch
+  -> docker compose build codex-web
+  -> docker compose up -d codex-web
+  -> docker compose --profile tunnel up -d cloudflared when CLOUDFLARE_TUNNEL_TOKEN exists
+```
+
+Use a self-hosted runner on the machine that should run the service. GitHub
+hosted runners cannot keep this service alive after the workflow exits.
+
 ### sign in
 
 ensure the codex cli on the host machine is signed in before starting the

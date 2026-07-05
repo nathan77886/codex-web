@@ -1,0 +1,33 @@
+name: docker deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: codex-web-docker-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker compose build codex-web
+
+      - name: Start codex-web
+        run: docker compose up -d codex-web
+
+      - name: Start cloudflared
+        env:
+          CLOUDFLARE_TUNNEL_TOKEN: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
+        run: |
+          if [ -z "${CLOUDFLARE_TUNNEL_TOKEN:-}" ]; then
+            echo "CLOUDFLARE_TUNNEL_TOKEN not set; skipping cloudflared"
+            exit 0
+          fi
+          docker compose --profile tunnel up -d cloudflared
