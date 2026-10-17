@@ -40,62 +40,84 @@ nix run github:0xcaff/codex-web
 
 then open <http://127.0.0.1:8214> in a browser.
 
-### docker
+### Docker images and shared host data
 
-Build and start the local container:
+GitHub Actions builds a Linux amd64 image on a GitHub-hosted runner and publishes
+`ghcr.io/nathan77886/codex-web:sha-<commit>` plus `latest`. It also uploads a
+compressed Docker image and checksum as a workflow artifact. No runner or build
+is required on the deployment host.
 
-```bash
-docker compose up -d --build codex-web
-```
-
-The compose file is tuned for the current host user and data layout:
-
-```bash
-CODEX_WEB_UID=1000
-CODEX_WEB_GID=1000
-CODEX_WEB_DOCKER_GID=988
-CODEX_WEB_HOME=/home/liuyu
-CODEX_WEB_HOST=127.0.0.1
-CODEX_WEB_PORT=8214
-```
-
-It mounts:
-
-- `/home/liuyu` so the container can reuse the Codex CLI login and user config.
-- `/mnt/ssd` so Codex can work with this repo and other SSD workspaces.
-- `/tmp` for app server sockets and temporary files.
-- `/var/run/docker.sock` so Codex can run Docker through the host daemon.
-
-This gives Codex broad access to the host as user `liuyu`, plus Docker daemon
-access. Treat the web UI as a remote shell with file and Docker access.
-
-### cloudflare tunnel
-
-Create a Cloudflare Tunnel token, then start the tunnel sidecar:
+After the workflow succeeds, deploy the exact published digest:
 
 ```bash
-export CLOUDFLARE_TUNNEL_TOKEN=...
-docker compose --profile tunnel up -d cloudflared
+export CODEX_WEB_IMAGE=ghcr.io/nathan77886/codex-web@sha256:<published-digest>
+docker compose pull codex-web
+docker compose up -d --no-build codex-web
 ```
 
-Keep `codex-web` bound to `127.0.0.1:8214` and expose it through Cloudflare
-Tunnel. Add Cloudflare Access or another authentication layer before exposing it
-to the internet.
+For registries without pull access, download the workflow image artifact, verify
+`sha256sum -c codex-web.tar.gz.sha256`, run `docker load -i codex-web.tar.gz`, and
+set `CODEX_WEB_IMAGE` to the artifact's `sha-<commit>` image tag before starting.
 
-### github actions deploy
+The runtime image contains the patched web client, server and runtime dependencies.
+It excludes the downloaded macOS app, build tools, Electron runtime and source maps.
+Do not bind-mount source code over `/app`: that would replace the image just built.
 
-This repo includes `.github/workflows/docker-deploy.yml`. It builds and starts
-the Docker service on a self-hosted GitHub Actions runner:
+The compose file uses host networking but binds HTTP only to `127.0.0.1:8214`.
+It mounts `/home/liuyu`, `/mnt/ssd`, `/mnt/hdd`, and `/tmp` at their original paths.
+`CODEX_HOME` is explicitly `/mnt/ssd/codex-home`, the same data used by the host
+Codex App Server. The bridge in `scripts/app-server-proxy.cjs` connects to
+`$CODEX_HOME/app-server-control/app-server-control.sock`. It fails if the host
+daemon is unavailable; it never starts a separate daemon inside Docker. Commands
+run by that shared daemon retain the host's tools, filesystem and permissions.
+The web container itself does not need a Docker daemon socket.
+
+Adjust `CODEX_WEB_UID`, `CODEX_WEB_GID`, `CODEX_WEB_HOME`, `CODEX_WEB_CODEX_HOME`,
+and `CODEX_WEB_PROXY` for another host. The default HTTP proxy is the host's
+`127.0.0.1:7890`; Node's environment proxy support is enabled for desktop backend
+requests. The local Unix socket bridge does not go through this proxy.
+
+### IP access through Shanghai Nginx
+
+Authentication belongs in the external reverse proxy. This project contains no
+login password or login session implementation. The Cloudflare sidecar has been
+removed from the deployment. Use a dedicated reverse SSH service, independent of
+existing SSH or CLIProxyAPI tunnels:
 
 ```text
-push to main / manual workflow_dispatch
-  -> docker compose build codex-web
-  -> docker compose up -d codex-web
-  -> docker compose --profile tunnel up -d cloudflared when CLOUDFLARE_TUNNEL_TOKEN exists
+Browser -> Shanghai Nginx (HTTPS + Basic Auth)
+        -> Shanghai 127.0.0.1:18215
+        -> reverse SSH -> host 127.0.0.1:8214
 ```
 
-Use a self-hosted runner on the machine that should run the service. GitHub
-hosted runners cannot keep this service alive after the workflow exits.
+Nginx must protect every route, including `/__backend/ipc`, support WebSocket
+upgrade, disable proxy buffering, and allow long-running connections and uploads.
+Keep its password hash and TLS key outside this repository. Only retire the old
+Codex-specific Cloudflare route after the new entry is verified.
+
+### Mobile dictation
+
+The microphone button reuses the bundled Codex desktop recorder and authenticated
+transcription flow (`/transcribe`), when the shared App Server exposes an active
+ChatGPT login. No separate speech API key or replacement speech provider is
+configured. With this host's current `getunifun` provider, App Server reports
+`requiresOpenaiAuth=false` and no ChatGPT account/token to clients, so the native
+dictation button is unavailable even though `auth.json` retains ChatGPT tokens.
+Do not change the shared provider merely to enable the microphone. The recorder uses
+`MediaRecorder` and preserves the browser's actual recording MIME type, including
+MP4 on supporting browsers and WebM on Chromium. It falls back to HTTP
+transcription if streaming dictation cannot connect.
+
+Mobile browser microphone capture requires a secure context: use HTTPS with a
+certificate trusted by the phone, even when accessing by IP. An HTTP public IP,
+or simply bypassing a self-signed certificate warning, is not a reliable setup
+for microphone access. Keyboard dictation supplied by iOS/Android is a separate
+input method and does not exercise the Codex microphone button.
+
+Validate Android Chrome and iOS Safari separately: microphone permission,
+record/stop/cancel, transcription into the composer, retry after a network
+failure, and keyboard/safe-area layout. Automated fake-microphone checks do not
+replace a physical phone test. Only tap Send after reviewing the dictated text.
 
 ### sign in
 
@@ -117,18 +139,24 @@ it's possible to hook codex-web up to an already-running app server using the
 start a long-lived app server somewhere:
 
 ```bash
-codex app-server --listen unix:///tmp/codex-app-server.sock
+mkdir -p /tmp/codex-app-server
+cd /tmp/codex-app-server
+codex app-server --listen unix://codex-app-server.sock
 ```
 
 then run `codex-web` with the proxy helper:
 
 ```bash
 nix shell github:0xcaff/codex-web github:0xcaff/codex-web#codex_remote_proxy -c bash -lc '
-  export CODEX_UNIX_SOCKET=/tmp/codex-app-server.sock
+  export CODEX_UNIX_SOCKET=/tmp/codex-app-server/codex-app-server.sock
   export CODEX_CLI_PATH="$(command -v codex_remote_proxy)"
   codex-web
 '
 ```
+
+`codex app-server proxy --sock ...` is a raw stdio protocol bridge for another
+program to use; when run directly in a terminal it will wait for protocol input
+rather than opening an interactive prompt.
 
 ## security
 

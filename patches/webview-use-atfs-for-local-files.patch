@@ -1,11 +1,11 @@
---- a/webview/assets/filesystem-media-src-BngrzgPI.js
-+++ b/webview/assets/filesystem-media-src-BngrzgPI.js
-@@ -2,7 +2,7 @@
- var n = `app://fs`,
-   r = `/@fs`;
- function i(e) {
--  return `${n}${o(e)}`;
-+  return o(e);
+--- a/webview/assets/app-shared-8bd9d0399038.js
++++ b/webview/assets/app-shared-8bd9d0399038.js
+@@ -261189,7 +261189,7 @@
+   }))();
  }
- function a(e) {
-   return o(e);
+ function tYr(e) {
+-  return `${iYr}${rYr(e)}`;
++  return rYr(e);
+ }
+ function nYr(e) {
+   return rYr(e);

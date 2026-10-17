@@ -1,20 +1,20 @@
---- a/.vite/build/workspace-root-drop-handler-D1HnRjoH.js
-+++ b/.vite/build/workspace-root-drop-handler-D1HnRjoH.js
-@@ -39485,6 +39485,7 @@
-     i = e.y(n.version);
-   return (
-     e.r({
-+      enabled: !1,
-       dsn: e.v,
-       environment: vA.buildFlavor,
-       release: i,
 --- a/.vite/build/worker.js
 +++ b/.vite/build/worker.js
-@@ -66670,6 +66670,7 @@
-   let n = kU(e.appVersion),
-     r = e.buildFlavor !== `prod`;
-   (DA({
+@@ -120541,6 +120541,7 @@
+   let r = dP(e.appVersion),
+     i = e.buildFlavor !== `prod`;
+   (Ub({
 +    enabled: !1,
-     dsn: jK,
-     environment: e.buildFlavor,
-     release: MK(n.version),
+     dsn: e.dsn,
+     transport: (e) => {
+       let t = xu(e.bufferSize ?? 64);
+--- a/.vite/build/bootstrap-CooIJpZm.js
++++ b/.vite/build/bootstrap-CooIJpZm.js
+@@ -19758,6 +19758,7 @@
+   r && (s = +!!o);
+   let c = ve(n.version);
+   (uw({
++    enabled: !1,
+     ipcMode: wx.Classic,
+     dsn: zw.dsn,
+     transport: zC(Nw(t)),

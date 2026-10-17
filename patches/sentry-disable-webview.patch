@@ -1,10 +1,10 @@
---- a/webview/assets/apps-Au-fp4y1.js
-+++ b/webview/assets/apps-Au-fp4y1.js
-@@ -30402,6 +30402,7 @@
-     n = ne(e.appVersion),
+--- a/webview/assets/app-initial-6350d04672d0.js
++++ b/webview/assets/app-initial-6350d04672d0.js
+@@ -144501,6 +144501,7 @@
+     n = rpe(e.appVersion),
      r = e.buildFlavor !== `prod`;
-   (Yw({
+   (E1n({
 +    enabled: !1,
-     dsn: re,
-     environment: Qw,
-     release: w(n.version),
+     beforeBreadcrumb: CLe,
+     beforeSend: pNe,
+     dsn: e.dsn,

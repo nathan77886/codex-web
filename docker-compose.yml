@@ -1,28 +1,23 @@
 services:
   codex-web:
-    build: .
-    image: codex-web:local
+    image: "${CODEX_WEB_IMAGE:-ghcr.io/nathan77886/codex-web:latest}"
     container_name: codex-web
+    init: true
     restart: unless-stopped
     network_mode: host
     user: "${CODEX_WEB_UID:-1000}:${CODEX_WEB_GID:-1000}"
-    group_add:
-      - "${CODEX_WEB_DOCKER_GID:-988}"
     environment:
       HOME: "${CODEX_WEB_HOME:-/home/liuyu}"
-      HOST: "${CODEX_WEB_HOST:-127.0.0.1}"
+      CODEX_HOME: "${CODEX_WEB_CODEX_HOME:-/mnt/ssd/codex-home}"
+      CODEX_UNIX_SOCKET: "${CODEX_WEB_CODEX_HOME:-/mnt/ssd/codex-home}/app-server-control/app-server-control.sock"
+      CODEX_CLI_PATH: /app/scripts/app-server-proxy.cjs
+      HOST: 127.0.0.1
       PORT: "${CODEX_WEB_PORT:-8214}"
+      HTTP_PROXY: "${CODEX_WEB_PROXY:-http://127.0.0.1:7890}"
+      HTTPS_PROXY: "${CODEX_WEB_PROXY:-http://127.0.0.1:7890}"
+      NO_PROXY: localhost,127.0.0.1,::1
     volumes:
       - "${CODEX_WEB_HOME:-/home/liuyu}:${CODEX_WEB_HOME:-/home/liuyu}"
-      - "/mnt/ssd:/mnt/ssd"
-      - "/tmp:/tmp"
-      - "/var/run/docker.sock:/var/run/docker.sock"
-
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    container_name: codex-web-cloudflared
-    restart: unless-stopped
-    network_mode: host
-    command: tunnel run --token ${CLOUDFLARE_TUNNEL_TOKEN:-}
-    profiles:
-      - tunnel
+      - /mnt/ssd:/mnt/ssd
+      - /mnt/hdd:/mnt/hdd
+      - /tmp:/tmp

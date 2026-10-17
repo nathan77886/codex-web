@@ -1,0 +1,11 @@
+--- a/webview/assets/app-initial-6350d04672d0.js
++++ b/webview/assets/app-initial-6350d04672d0.js
+@@ -221278,7 +221278,7 @@
+   let lt = Dd(ct),
+     ut = `${B ?? 0}px`,
+     dt = re ? `var(--height-toolbar-sm)` : `0px`,
+-    ft = `${te.left / U + 6}px`,
++    ft = `0px`,
+     pt = `${te.right / U}px`,
+     mt;
+   t[102] !== le ||

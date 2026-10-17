@@ -1,0 +1,12 @@
+--- a/.vite/build/main-CqEoQDOU.js
++++ b/.vite/build/main-CqEoQDOU.js
+@@ -176200,6 +176200,9 @@
+     updateDockIcon: L,
+     setWindowContext: (e) => {
+       R = e;
++      globalThis.__codexElectronIpcBridge?.setRendererWindowFactory(() =>
++        z.createPrimaryWindow({ show: !1 }),
++      );
+       for (let t of _.BrowserWindow.getAllWindows())
+         !t.isDestroyed() && z.isAppServiceWindow(t) && e.registerWindow(t);
+     },

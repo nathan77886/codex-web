@@ -1,10 +1,10 @@
---- a/webview/assets/app-main-Dsg36Y4q.js
-+++ b/webview/assets/app-main-Dsg36Y4q.js
-@@ -28029,6 +28029,7 @@
-     N;
-   t[42] === Symbol.for(`react.memo_cache_sentinel`)
-     ? ((N = {
-+        overrideAdapter: window.__ELECTRON_SHIM__.overrideAdapter,
-         networkConfig: {
-           api: Gk,
-           logEventUrl: gk,
+--- a/webview/assets/app-initial-6350d04672d0.js
++++ b/webview/assets/app-initial-6350d04672d0.js
+@@ -506602,6 +506602,7 @@
+ function DQs(e) {
+   let t = {
+     ...zQs,
++    overrideAdapter: window.__ELECTRON_SHIM__.overrideAdapter,
+     enableLiveValuesAutoRefresh: !0,
+     ...(e === !0 ? {} : { disableStorage: !0, loggingEnabled: `disabled` }),
+   };

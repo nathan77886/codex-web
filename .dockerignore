@@ -5,3 +5,13 @@ scratch
 npm-debug.log
 Dockerfile
 docker-compose*.yml
+.codex-bak
+.env
+.env.*
+src/server/**/*.js
+src/server/**/*.js.map
+src/server/**/*.d.ts
+src/server/**/*.d.ts.map
+.codex-tpp-local-executor-installation-id
+browser-sidebar-page-states.json
+statsig-state.json*

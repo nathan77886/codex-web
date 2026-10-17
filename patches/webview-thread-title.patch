@@ -1,29 +1,14 @@
---- a/webview/assets/local-conversation-thread-Dki9vHa8.js
-+++ b/webview/assets/local-conversation-thread-Dki9vHa8.js
-@@ -148,6 +148,7 @@
-   m as Bt,
-   ma as Vt,
-   mt as Ht,
-+  st as codexHostedWindowTitleAtom,
-   n as Ut,
-   on as Wt,
-   ot as Gt,
-@@ -34173,6 +34174,7 @@
-     h = xr(wt, e) ?? `needs_resume`,
-     g = xr(Gt, e),
-     _ = xr(Kt, e),
-+    codexHostedWindowTitle = xr(codexHostedWindowTitleAtom, e),
-     v = xr(Ht, e) === `projectless`,
-     y = xr(lt, e),
-     {
-@@ -34196,6 +34198,10 @@
-   (0, Q.useEffect)(() => {
-     I?.id == null || I.readAt != null || F(I.id);
-   }, [I?.id, I?.readAt, F]);
-+  (0, Q.useEffect)(() => {
-+    let t = codexHostedWindowTitle?.trim();
-+    t && (document.title = `${t} | Codex`);
+--- a/webview/assets/local-conversation-thread-c8c5e92ea89e.js
++++ b/webview/assets/local-conversation-thread-c8c5e92ea89e.js
+@@ -18850,6 +18850,11 @@
+   isScrollToTopEnabled: x,
+   usesUnifiedTimeline: C,
+ }) {
++  let codexHostedWindowTitle = X(Un, { hostId: i, threadId: t });
++  (0, $A.useEffect)(() => {
++    let title = codexHostedWindowTitle?.trim();
++    title && (document.title = `${title} | Codex`);
 +  }, [codexHostedWindowTitle]);
-   let z = li(),
-     { agentMode: B } = Ka({ conversationId: e, hostId: m }),
-     V = p ? P(p) : null,
+   let w = he(nn),
+     T = (0, $A.useContext)(hh) === `activity`;
+   X(Ua, s ? { hostId: i, threadId: t } : null);

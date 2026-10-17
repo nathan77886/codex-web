@@ -1,33 +1,34 @@
---- a/webview/assets/chunk-LFPYN7LY-CRkYzDF0.js
-+++ b/webview/assets/chunk-LFPYN7LY-CRkYzDF0.js
-@@ -1058,11 +1058,16 @@
-   unstable_useTransitions: o,
- }) {
-   let s = r.useRef();
--  s.current ??= a({ initialEntries: n, initialIndex: i, v5Compat: !0 });
-+  s.current ??= a({
-+    initialEntries: n ?? [window.__ELECTRON_SHIM__.initialRoute],
-+    initialIndex: i,
-+    v5Compat: !0,
-+  });
-   let c = s.current,
-     [l, u] = r.useState({ action: c.action, location: c.location }),
-     d = r.useCallback(
-       (e) => {
-+        window.__ELECTRON_SHIM__.onMemoryNavigationChanged(e);
-         o === !1 ? u(e) : r.startTransition(() => u(e));
-       },
-       [o],
---- a/webview/assets/apps-Au-fp4y1.js
-+++ b/webview/assets/apps-Au-fp4y1.js
-@@ -2058,8 +2058,8 @@
-   if (e == null) throw Error(`AppShellLayoutMotionContext is missing`);
-   return e;
+--- a/webview/assets/app-initial-6350d04672d0.js
++++ b/webview/assets/app-initial-6350d04672d0.js
+@@ -75630,7 +75630,7 @@
+   return Ch(hzt, void 0) !== void 0;
  }
--var Yi = j(M, !0),
--  Xi = j(M, () => new Jt(1)),
-+var Yi = j(M, window.__ELECTRON_SHIM__.initialSidebarState),
-+  Xi = j(M, () => new Jt(window.__ELECTRON_SHIM__.initialSidebarState)),
-   Zi = j(F, !1),
-   Qi = j(F, () => new Jt(0)),
-   $i = j(F, !1),
+ function czt() {
+-  return !0;
++  return window.__ELECTRON_SHIM__.initialSidebarState;
+ }
+ function lzt(e) {
+   return e === `/settings` || !!e?.startsWith(`/settings/`);
+@@ -324142,12 +324142,19 @@
+     ? (i = t[1])
+     : ((i = () =>
+         RNe([{ path: `*`, Component: qHa, ErrorBoundary: JHa }], {
+-          initialEntries: r,
++          initialEntries: r ?? [window.__ELECTRON_SHIM__.initialRoute],
+         })),
+       (t[0] = r),
+       (t[1] = i));
+-  let [a] = (0, XHa.useState)(i),
+-    o;
++  let [a] = (0, XHa.useState)(i);
++  (0, XHa.useEffect)(() =>
++    a.subscribe((state) => {
++      window.__ELECTRON_SHIM__.onMemoryNavigationChanged({
++        action: state.historyAction,
++        location: state.location,
++      });
++    }), [a]);
++  let o;
+   t[2] === a
+     ? (o = t[3])
+     : ((o = (0, ZHa.jsx)(sHa, { router: a, useTransitions: !1 })),

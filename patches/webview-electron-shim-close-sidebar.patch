@@ -1,34 +1,12 @@
---- a/webview/assets/settings-back-route-C5YW47j2.js
-+++ b/webview/assets/settings-back-route-C5YW47j2.js
-@@ -1,5 +1,6 @@
-+import { s as g } from "./chunk-Bj-mKKzh.js";
- import { Gn as e, Qn as t } from "./apps-Au-fp4y1.js";
--import { t as n } from "./jsx-runtime-Bj4hVTj7.js";
-+import { n as _, t as n } from "./jsx-runtime-Bj4hVTj7.js";
- import { t as r } from "./clsx-Duxel1Jl.js";
- import {
-   J as i,
-@@ -9,7 +10,8 @@
-   y as c,
- } from "./vscode-api-DH_DWhkY.js";
- import { t as l } from "./badge-0UPLZdLW.js";
--var u = s();
-+var u = s(),
-+  v = g(_());
- function d() {
-   let n = (0, u.c)(3),
-     r = o(a),
-@@ -24,7 +26,12 @@
-       (n[0] = r),
-       (n[1] = i),
-       (n[2] = s)),
--    c(`toggle-sidebar`, i, s));
-+    c(`toggle-sidebar`, i, s),
-+    v.useEffect(() => {
-+      window.__ELECTRON_SHIM__.closeSidebar = () => {
-+        t(r, !1);
-+      };
-+    }, [r]));
- }
- var f = n();
- function p(e) {
+--- a/webview/assets/app-initial-6350d04672d0.js
++++ b/webview/assets/app-initial-6350d04672d0.js
+@@ -220313,6 +220313,9 @@
+       (r[3] = a))
+     : (a = r[3]);
+   let o = a;
++  window.__ELECTRON_SHIM__.closeSidebar = () => {
++    $Rt(e, !1, { animate: t });
++  };
+   Pw(`toggleSidebar`, o);
+   let s;
+   (r[4] !== i || r[5] !== e || r[6] !== t

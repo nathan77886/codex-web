@@ -1,35 +1,47 @@
---- a/webview/assets/prosemirror-DbRBBq50.js
-+++ b/webview/assets/prosemirror-DbRBBq50.js
-@@ -25553,6 +25553,13 @@
-   let o = new EventTarget(),
-     s = new Sp(),
-     c = a,
+--- a/webview/assets/app-initial-6350d04672d0.js
++++ b/webview/assets/app-initial-6350d04672d0.js
+@@ -560590,14 +560590,22 @@
+             : XB({ schema: C, text: e })),
+     z != null && d != null && !p && (z = VHr(z, d, e ?? void 0)));
+   let B = d == null ? null : Ozc(p ? d : null, (e) => vzc(x, e)),
 +    inputModeDisabled = !1,
-+    getAttributes = () => (inputModeDisabled ? {} : { inputmode: `none` }),
++    getAttributes = () => ({
++      "aria-multiline": `true`,
++      dir: `auto`,
++      role: `textbox`,
++      spellcheck: `true`,
++      tabindex: `0`,
++      ...(inputModeDisabled ? {} : { inputmode: `none` }),
++    }),
 +    setPointerInputMode = (e) => {
 +      inputModeDisabled !== e &&
 +        ((inputModeDisabled = e),
-+        l.isDestroyed || l.setProps({ attributes: getAttributes }));
++        V.isDestroyed || V.setProps({ attributes: getAttributes }));
 +    },
-     l = new of(null, {
-       state: zi.create({
-         schema: yp,
-@@ -25635,6 +25642,18 @@
-         let t = l.state.apply(e);
-         (l.updateState(t), o.dispatchEvent(new Event(Ki)));
-       },
+     V = new RAe(null, {
+-      attributes: {
+-        "aria-multiline": `true`,
+-        dir: `auto`,
+-        role: `textbox`,
+-        spellcheck: `true`,
+-        tabindex: `0`,
+-      },
 +      attributes: getAttributes,
-+      handleDOMEvents: {
-+        mousedown(e, t) {
-+          return (setPointerInputMode(!0), !1);
-+        },
+       transformPastedText: M.transformPastedText,
+       transformPastedHTML(e) {
+         if ((M.transformPastedHTML(e), e.length > 1e5)) return ` `;
+@@ -560773,7 +560781,13 @@
+       },
+       handleDOMEvents: {
+         keydown: (e, t) => M.handleKeyEvent(t),
+-        mousedown: (e, t) => M.handleMouseDown(t),
++        mousedown: (e, t) => (setPointerInputMode(!0), M.handleMouseDown(t)),
 +        touchstart(e, t) {
 +          return (setPointerInputMode(!0), !1);
 +        },
 +        blur(e, t) {
 +          return (setPointerInputMode(!1), !1);
 +        },
-+      },
-       handlePaste(e, t) {
-         if (t.defaultPrevented) return !0;
-         let n = t.clipboardData,
+         keyup(e, t) {
+           M.handleKeyEvent(t);
+           let { $from: n, empty: r } = e.state.selection;

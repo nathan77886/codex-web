@@ -1,5 +1,12 @@
 #!/usr/bin/env node
 
+declare global {
+  var __CODEX_SHIM_VALUES__: {
+    version: string;
+  };
+}
+
+import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -10,7 +17,6 @@ import Fastify from "fastify";
 import fastifyMultipart from "@fastify/multipart";
 import fastifyStatic from "@fastify/static";
 import { installModuleAliasHook } from "./module";
-import { glob } from "glob";
 
 type ServerOptions = {
   host: string;
@@ -30,6 +36,22 @@ type RendererToMainMessage =
       channel: string;
       args: unknown[];
       sourceUrl: string;
+    }
+  | {
+      type: "ipc-renderer-post-message";
+      channel: string;
+      message: unknown;
+      portIds: string[];
+      sourceUrl?: string;
+    }
+  | {
+      type: "message-port-message";
+      portId: string;
+      data: unknown;
+    }
+  | {
+      type: "message-port-close";
+      portId: string;
     }
   | {
       type: "workspace-directory-entries-request";
@@ -67,6 +89,15 @@ type MainToRendererMessage =
       requestId: string;
       ok: false;
       errorMessage: string;
+    }
+  | {
+      type: "message-port-message";
+      portId: string;
+      data: unknown;
+    }
+  | {
+      type: "message-port-close";
+      portId: string;
     };
 
 type WorkspaceDirectoryEntry = {
@@ -80,6 +111,100 @@ type WorkspaceDirectoryEntries = {
   parentPath: string | null;
   entries: WorkspaceDirectoryEntry[];
 };
+
+type MessagePortListener = (...args: unknown[]) => void;
+
+type BridgedMessagePort = {
+  close: () => void;
+  on: (event: string, listener: MessagePortListener) => unknown;
+  postMessage: (message: unknown) => void;
+  start: () => void;
+};
+
+class WebSocketMessagePort implements BridgedMessagePort {
+  private closed = false;
+  private readonly pendingMessages: unknown[] = [];
+  private readonly listeners = new Map<string, Set<MessagePortListener>>();
+
+  constructor(
+    private readonly portId: string,
+    private readonly sendToRenderer: (message: MainToRendererMessage) => void,
+    private readonly onClosed: () => void,
+  ) {}
+
+  on(event: string, listener: MessagePortListener): this {
+    const listeners = this.listeners.get(event) ?? new Set();
+    listeners.add(listener);
+    this.listeners.set(event, listeners);
+    if (event === "message") {
+      for (const data of this.pendingMessages.splice(0)) {
+        this.receiveMessage(data);
+      }
+    }
+
+    return this;
+  }
+
+  postMessage(data: unknown): void {
+    if (this.closed) {
+      return;
+    }
+    this.sendToRenderer({
+      type: "message-port-message",
+      portId: this.portId,
+      data,
+    });
+  }
+
+  start(): void {}
+
+  close(): void {
+    if (!this.markClosed()) {
+      return;
+    }
+    this.sendToRenderer({
+      type: "message-port-close",
+      portId: this.portId,
+    });
+  }
+
+  receiveMessage(data: unknown): void {
+    if (this.closed) {
+      return;
+    }
+    const listeners = this.listeners.get("message");
+    if (!listeners || listeners.size === 0) {
+      this.pendingMessages.push(data);
+      return;
+    }
+    for (const listener of listeners) {
+      listener({ data });
+    }
+  }
+
+  disconnect(): void {
+    if (!this.markClosed()) {
+      return;
+    }
+    this.emit("close");
+  }
+
+  private emit(event: string, ...args: unknown[]): void {
+    for (const listener of this.listeners.get(event) ?? []) {
+      listener(...args);
+    }
+  }
+
+  private markClosed(): boolean {
+    if (this.closed) {
+      return false;
+    }
+    this.closed = true;
+    this.pendingMessages.length = 0;
+    this.onClosed();
+    return true;
+  }
+}
 
 function workspaceDirectoryEntryTypeRank(
   entry: WorkspaceDirectoryEntry,
@@ -106,10 +231,34 @@ function compareWorkspaceDirectoryEntries(
   );
 }
 
+type RendererWindow = {
+  id: number;
+  webContents: { id: number };
+  destroy: () => void;
+};
+
 type IpcMainBridgeState = {
-  broadcastToRenderer?: (message: MainToRendererMessage) => void;
-  handleRendererInvoke?: (channel: string, args: unknown[]) => Promise<unknown>;
-  handleRendererSend?: (channel: string, args: unknown[]) => void;
+  setRendererWindowFactory?: (factory: () => Promise<RendererWindow>) => void;
+  sendToRenderer?: (
+    webContentsId: number,
+    message: MainToRendererMessage,
+  ) => void;
+  handleRendererInvoke?: (
+    channel: string,
+    args: unknown[],
+    windowId: number,
+  ) => Promise<unknown>;
+  handleRendererPostMessage?: (
+    channel: string,
+    message: unknown,
+    ports: BridgedMessagePort[],
+    windowId: number,
+  ) => void;
+  handleRendererSend?: (
+    channel: string,
+    args: unknown[],
+    windowId: number,
+  ) => void;
 };
 
 function printUsage(): void {
@@ -227,6 +376,8 @@ async function getWorkspaceDirectoryEntries({
 }
 
 function ensureElectronLikeProcessContext(): void {
+  process.env.BUILD_FLAVOR = "prod";
+
   const versions = process.versions as NodeJS.ProcessVersions & {
     electron?: string;
   };
@@ -240,9 +391,17 @@ function ensureElectronLikeProcessContext(): void {
   }
 
   const processWithElectronFields = process as NodeJS.Process & {
+    getSystemVersion?: () => string;
     resourcesPath?: string;
     type?: string;
   };
+  const systemVersion =
+    process.platform === "darwin"
+      ? execFileSync("/usr/bin/sw_vers", ["-productVersion"], {
+          encoding: "utf8",
+        }).trim()
+      : os.release();
+  processWithElectronFields.getSystemVersion ??= () => systemVersion;
   processWithElectronFields.resourcesPath ??= path.resolve(
     __dirname,
     "../../scratch/asar",
@@ -254,7 +413,6 @@ async function startIpcBridgeServer(options: ServerOptions): Promise<void> {
   const bridgeState = getIpcMainBridgeState();
   const app = Fastify({ logger: false });
   const websocketServer = new WebSocketServer({ noServer: true });
-  const sockets = new Set<WebSocket>();
 
   await app.register(fastifyMultipart, {
     limits: {
@@ -332,23 +490,75 @@ async function startIpcBridgeServer(options: ServerOptions): Promise<void> {
     });
   });
 
-  bridgeState.broadcastToRenderer = (message: MainToRendererMessage): void => {
-    const payload = JSON.stringify(message);
-    for (const socket of sockets) {
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.send(payload);
-      }
+  const rendererSockets = new Map<number, WebSocket>();
+  const rendererWindowFactory = new Promise<() => Promise<RendererWindow>>(
+    (resolve) => {
+      bridgeState.setRendererWindowFactory = resolve;
+    },
+  );
+  bridgeState.sendToRenderer = (webContentsId, message): void => {
+    const socket = rendererSockets.get(webContentsId);
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify(message));
     }
   };
 
   websocketServer.on("connection", (socket) => {
-    sockets.add(socket);
+    let rendererWindow: RendererWindow | undefined;
+    // Each tab is a real registered app view, with its own IPC client and ownership.
+    const rendererReady = rendererWindowFactory
+      .then(async (createWindow) => {
+        if (socket.readyState !== WebSocket.OPEN) return undefined;
+        const window = await createWindow();
+        if (socket.readyState !== WebSocket.OPEN) {
+          window.destroy();
+          return undefined;
+        }
+        rendererWindow = window;
+        rendererSockets.set(window.webContents.id, socket);
+        return window;
+      })
+      .catch((error) => {
+        console.error("[ipc-bridge] failed to create renderer window", error);
+        socket.close(1011, "Renderer initialization failed");
+        return undefined;
+      });
+
+    const messagePorts = new Map<string, WebSocketMessagePort>();
+    const dispatchPostMessage = (
+      channel: string,
+      message: unknown,
+      ports: WebSocketMessagePort[],
+      windowId: number,
+    ): void => {
+      const handler = bridgeState.handleRendererPostMessage;
+      if (handler) {
+        handler(channel, message, ports, windowId);
+        return;
+      }
+
+      console.error(
+        `[ipc-bridge] no ipcMain postMessage handler for channel ${channel}`,
+      );
+      for (const port of ports) {
+        port.close();
+      }
+    };
 
     socket.on("close", () => {
-      sockets.delete(socket);
+      for (const port of messagePorts.values()) {
+        port.disconnect();
+      }
+      messagePorts.clear();
+      if (rendererWindow) {
+        rendererSockets.delete(rendererWindow.webContents.id);
+        rendererWindow.destroy();
+      }
     });
 
-    socket.on("message", (rawData) => {
+    socket.on("message", async (rawData) => {
+      const window = await rendererReady;
+      if (!window || socket.readyState !== WebSocket.OPEN) return;
       let message: RendererToMainMessage;
       try {
         message = JSON.parse(String(rawData)) as RendererToMainMessage;
@@ -358,7 +568,49 @@ async function startIpcBridgeServer(options: ServerOptions): Promise<void> {
       }
 
       if (message.type === "ipc-renderer-send") {
-        bridgeState.handleRendererSend?.(message.channel, message.args);
+        bridgeState.handleRendererSend?.(
+          message.channel,
+          message.args,
+          window.id,
+        );
+        return;
+      }
+
+      if (message.type === "ipc-renderer-post-message") {
+        if (new Set(message.portIds).size !== message.portIds.length) {
+          console.error("[ipc-bridge] duplicate transferred MessagePort id");
+          return;
+        }
+
+        const ports = message.portIds.map((portId) => {
+          const existingPort = messagePorts.get(portId);
+          if (existingPort) {
+            existingPort.disconnect();
+          }
+          const port = new WebSocketMessagePort(
+            portId,
+            (message) => {
+              if (socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify(message));
+              }
+            },
+            () => messagePorts.delete(portId),
+          );
+          messagePorts.set(portId, port);
+          return port;
+        });
+
+        dispatchPostMessage(message.channel, message.message, ports, window.id);
+        return;
+      }
+
+      if (message.type === "message-port-message") {
+        messagePorts.get(message.portId)?.receiveMessage(message.data);
+        return;
+      }
+
+      if (message.type === "message-port-close") {
+        messagePorts.get(message.portId)?.disconnect();
         return;
       }
 
@@ -393,7 +645,7 @@ async function startIpcBridgeServer(options: ServerOptions): Promise<void> {
       if (message.type === "ipc-renderer-invoke") {
         const { channel, requestId, args } = message;
         Promise.resolve(
-          bridgeState.handleRendererInvoke?.(channel, args) ??
+          bridgeState.handleRendererInvoke?.(channel, args, window.id) ??
             Promise.reject(
               new Error(
                 `[ipc-bridge] no ipcMain.handle for channel ${channel}`,
@@ -432,21 +684,19 @@ async function startIpcBridgeServer(options: ServerOptions): Promise<void> {
   ensureElectronLikeProcessContext();
   installModuleAliasHook();
 
-  const matches = await glob("../../scratch/asar/.vite/build/main-*.js", {
-    nodir: true,
-    cwd: __dirname,
-  });
+  const packageJson = JSON.parse(
+    await fs.readFile(
+      path.resolve(__dirname, "../../scratch/asar/package.json"),
+      "utf8",
+    ),
+  );
 
-  if (matches.length === 0) {
-    throw new Error("no main bundle found");
-  }
+  globalThis.__CODEX_SHIM_VALUES__ = {
+    version: packageJson.version,
+  };
 
-  if (matches.length > 1) {
-    throw new Error("multiple main bundles found");
-  }
-
-  const module = require(matches[0]!);
-  module.runMainAppStartup();
+  // The upstream entrypoint initializes network policy and starts the app once.
+  require(path.resolve(__dirname, "../../scratch/asar", packageJson.main));
 }
 
 async function main(args: string[]) {
