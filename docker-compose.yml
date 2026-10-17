@@ -9,6 +9,7 @@ services:
     environment:
       HOME: "${CODEX_WEB_HOME:-/home/liuyu}"
       CODEX_HOME: "${CODEX_WEB_CODEX_HOME:-/mnt/ssd/codex-home}"
+      CODEX_WEB_USER_DATA: "${CODEX_WEB_CODEX_HOME:-/mnt/ssd/codex-home}/web"
       CODEX_UNIX_SOCKET: "${CODEX_WEB_CODEX_HOME:-/mnt/ssd/codex-home}/app-server-control/app-server-control.sock"
       CODEX_CLI_PATH: /app/scripts/app-server-proxy.cjs
       HOST: 127.0.0.1

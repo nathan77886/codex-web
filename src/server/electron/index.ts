@@ -1,3 +1,7 @@
+import { mkdirSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
 type StubFunction = (...args: unknown[]) => unknown;
 type StubListener = (...args: unknown[]) => void;
 type StubMessagePort = {
@@ -284,6 +288,13 @@ function createIpcMainStub(): {
 let appReady = false;
 const commandLineSwitches = new Map<string, string>();
 const commandLineArguments: string[] = [];
+const appPaths = new Map<string, string>();
+
+function userDataPath(): string {
+  const directory = process.env.CODEX_WEB_USER_DATA ?? appPaths.get("userData") ?? process.cwd();
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  return directory;
+}
 
 const appBase = {
   ...createEmitterStub("app"),
@@ -310,6 +321,13 @@ const appBase = {
   },
   getPath(name: string): string {
     log("app.getPath", [name]);
+    if (name === "userData") return userDataPath();
+    const configured = appPaths.get(name);
+    if (configured) return configured;
+    if (name === "home") return os.homedir();
+    if (name === "temp") return os.tmpdir();
+    if (name === "appData") return process.env.XDG_CONFIG_HOME ?? path.join(os.homedir(), ".config");
+    if (name === "logs") return path.join(userDataPath(), "logs");
     return process.cwd();
   },
   getAppMetrics(): unknown[] {
@@ -329,6 +347,7 @@ const appBase = {
   },
   setPath(name: string, value: string): void {
     log("app.setPath", [name, value]);
+    appPaths.set(name, value);
   },
   setAppUserModelId(value: string): void {
     log("app.setAppUserModelId", [value]);

@@ -71,6 +71,8 @@ Codex App Server. The bridge in `scripts/app-server-proxy.cjs` connects to
 daemon is unavailable; it never starts a separate daemon inside Docker. Commands
 run by that shared daemon retain the host's tools, filesystem and permissions.
 The web container itself does not need a Docker daemon socket.
+Web-only window and cache state is persisted in `$CODEX_HOME/web`, rather than
+being written into the immutable image's `/app` directory.
 
 Adjust `CODEX_WEB_UID`, `CODEX_WEB_GID`, `CODEX_WEB_HOME`, `CODEX_WEB_CODEX_HOME`,
 and `CODEX_WEB_PROXY` for another host. The default HTTP proxy is the host's
